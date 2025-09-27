@@ -49,6 +49,7 @@ io.on("connection", (socket) => {
   // Handle votes
   socket.on("vote", (option) => {
     if (votes[option] !== undefined) {
+      console.log("receieved vote update request")
       votes[option]++;
       console.log("Updated Votes:", votes);
 
