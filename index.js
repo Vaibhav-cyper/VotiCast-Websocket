@@ -1,7 +1,7 @@
 import { createServer } from "http";
 import { Server } from "socket.io";
 
-const hostname = "localhost";
+const hostname = "0.0.0.0"; // important for Render
 const port = 8000;
 const httpServer = createServer();
 
@@ -79,6 +79,6 @@ httpServer
     console.error(err);
     process.exit(1);
   })
-  .listen(port, () => {
+  .listen(port, hostname, () => {
     console.log(`> Ready on http://${hostname}:${port}`);
   });
