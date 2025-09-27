@@ -8,7 +8,7 @@ const httpServer = createServer();
 // Initialize Socket.io
 const io = new Server(httpServer, {
   cors: {
-    origin: "https://voticast.netlify.app/", // React dev server
+    origin: ["https://voticast.netlify.app/","http://localhost:5173/"], // React dev server
     methods: ["GET", "POST"], // Allowed HTTP methods
   },
 });
