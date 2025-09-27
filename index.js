@@ -2,7 +2,7 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 
 const hostname = "0.0.0.0"; // important for Render
-const port = 8000;
+const port = process.env.PORT || 8000;
 const httpServer = createServer();
 
 // Initialize Socket.io
