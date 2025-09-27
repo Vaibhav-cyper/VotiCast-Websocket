@@ -1,84 +1,88 @@
 import { createServer } from "http";
 import { Server } from "socket.io";
 
-const hostname = "0.0.0.0"; // important for Render
+// On Render, use 0.0.0.0 to listen publicly
+const hostname = "0.0.0.0";
 const port = process.env.PORT || 8000;
-const httpServer = createServer();
 
-// Initialize Socket.io
-const io = new Server(httpServer, {
-  cors: {
-    origin: ["https://voticast.netlify.app/","http://localhost:5173/"], // React dev server
-    methods: ["GET", "POST"], // Allowed HTTP methods
-  },
+// Create HTTP server
+const httpServer = createServer((req, res) => {
+  if (req.url === "/get") {
+    // simple wake-up endpoint
+    res.writeHead(200, { "Content-Type": "text/plain" });
+    res.end("Server is awake");
+  } else {
+    res.writeHead(404);
+    res.end();
+  }
 });
 
-// Track connection statistics
+// Initialize Socket.IO with proper CORS
+const io = new Server(httpServer, {
+  cors: {
+    origin: [
+      "https://voticast.netlify.app", // production frontend
+      "http://localhost:5173"          // local dev frontend
+    ],
+    methods: ["GET", "POST"],
+    credentials: true, // allows cookies if you use them
+  },
+  pingInterval: 25000,
+  pingTimeout: 60000,
+});
+
+// Track connections and votes
 let connectionCount = 0;
 let votes = { A: 0, B: 0, C: 0 };
 
-// Socket.io connection handling
+// Handle socket connections
 io.on("connection", (socket) => {
   connectionCount++;
   console.log(`User connected: ${socket.id} (Total connections: ${connectionCount})`);
 
-  // Handle user joining the voting room
-  socket.on("vote", (option) => {
-    try {
-      if (votes[option] !== undefined) {
-        votes[option]++;
-        console.log('Updated Client Votes  : ',votes);
-
-        // Send updated votes back to everyone
-        io.emit("vote-update", {
-          votes,
-          total: votes.A + votes.B + votes.C,
-        });
-      }
-    } catch (error) {
-      console.error("Error handling room join:", error);
-      socket.emit("error", { message: "Failed to join voting room" });
-    }
-  });
-
-  // Optional: send current state when a user connects
+  // Send initial vote state
   socket.emit("vote-update", {
     votes,
     total: votes.A + votes.B + votes.C,
   });
 
-  // Handle disconnection
+  // Handle votes
+  socket.on("vote", (option) => {
+    if (votes[option] !== undefined) {
+      votes[option]++;
+      console.log("Updated Votes:", votes);
+
+      // Broadcast updated votes to all clients
+      io.emit("vote-update", {
+        votes,
+        total: votes.A + votes.B + votes.C,
+      });
+    }
+  });
+
+  // Handle disconnects
   socket.on("disconnect", (reason) => {
     connectionCount--;
-    console.log(`User disconnected: ${socket.id}, reason: ${reason} (Total connections: ${connectionCount})`);
-
-    // Log room statistics after disconnect
-    setTimeout(() => {
-      console.log(`Voting room now has ${connectionCount} connected users`);
-    }, 100);
+    console.log(`User disconnected: ${socket.id} (Reason: ${reason}) (Total: ${connectionCount})`);
   });
 
-  // Handle connection errors
-  socket.on("error", (error) => {
-    console.error("Socket error for user", socket.id, ":", error);
-  });
-
-  // Handle unexpected events gracefully
+  // Catch-all for unexpected events
   socket.onAny((eventName, ...args) => {
-    if (!["vote-update", "vote", "disconnect", "error"].includes(eventName)) {
+    if (!["vote", "vote-update", "disconnect"].includes(eventName)) {
       console.warn(`Unexpected event '${eventName}' from ${socket.id}:`, args);
     }
   });
+
+  // Handle errors
+  socket.on("error", (error) => {
+    console.error("Socket error for user", socket.id, ":", error);
+  });
 });
 
-// Make io accessible to API routes
+// Expose io globally (optional)
 global.io = io;
 
-httpServer
-  .once("error", (err) => {
-    console.error(err);
-    process.exit(1);
-  })
-  .listen(port, hostname, () => {
-    console.log(`> Ready on http://${hostname}:${port}`);
-  });
+// Start server
+httpServer.listen(port, hostname, () => {
+  console.log(`> Socket.IO server running at http://${hostname}:${port}`);
+});
